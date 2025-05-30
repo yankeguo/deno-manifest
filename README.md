@@ -22,6 +22,9 @@ deno install -A --name deno-manifest https://raw.githubusercontent.com/yankeguo/
 
 # Or run directly without installation
 deno run -A https://raw.githubusercontent.com/yankeguo/deno-manifest/main/main.ts
+
+# Or use my short link
+deno run -A https://gyk.me/r/deno-manifest.ts
 ```
 
 ## Usage
