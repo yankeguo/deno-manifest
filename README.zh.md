@@ -88,13 +88,10 @@ const deployment: V1Deployment = {
 
 ```bash
 # 直接从源代码安装
-deno install -A --name deno-manifest https://raw.githubusercontent.com/yankeguo/deno-manifest/main/main.ts
+deno install -A --name deno-manifest https://cnb.cool/yankeguo/deno-manifest/-/git/raw/main/main.ts
 
 # 或者无需安装直接运行
-deno run -A https://raw.githubusercontent.com/yankeguo/deno-manifest/main/main.ts
-
-# 或使用我的短链接
-deno run -A https://gyk.me/r/deno-manifest.ts
+deno run -A https://cnb.cool/yankeguo/deno-manifest/-/git/raw/main/main.ts
 ```
 
 ## 使用方法
@@ -506,7 +503,7 @@ data:
           - deno
           - run
           - -A
-          - https://raw.githubusercontent.com/yankeguo/deno-manifest/main/main.ts
+          - https://cnb.cool/yankeguo/deno-manifest/-/git/raw/main/main.ts
 ```
 
 2. **修改 ArgoCD repo server** 添加插件 sidecar：
@@ -607,19 +604,6 @@ spec:
           value: production
         - name: REPLICAS
           value: "5"
-```
-
-### 高级用法：使用短链接
-
-为了方便，您可以在插件配置中使用短链接：
-
-```yaml
-generate:
-  command:
-    - deno
-    - run
-    - -A
-    - https://gyk.me/r/deno-manifest.ts
 ```
 
 ### 优势
