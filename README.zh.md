@@ -472,6 +472,164 @@ export default [
 ];
 ```
 
+## ArgoCD 集成
+
+`deno-manifest` 可以作为 [ArgoCD](https://argo-cd.readthedocs.io/) 的配置管理插件（CMP）无缝集成，让您能够在 GitOps 工作流程中使用 TypeScript 生成 Kubernetes 清单。
+
+### 工作原理
+
+ArgoCD 会自动检测仓库中的 TypeScript 文件，并使用 `deno-manifest` 生成 Kubernetes 资源。无需手动配置或指定插件名称 - 开箱即用！
+
+### 设置步骤
+
+1. **创建插件配置**：
+
+```yaml
+# argocd-cm-plugin.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deno-manifest-plugin
+  namespace: argocd
+data:
+  plugin.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: ConfigManagementPlugin
+    metadata:
+      name: deno-manifest
+    spec:
+      discover:
+        find:
+          glob: "**/*.ts"
+      generate:
+        command:
+          - deno
+          - run
+          - -A
+          - https://raw.githubusercontent.com/yankeguo/deno-manifest/main/main.ts
+```
+
+2. **修改 ArgoCD repo server** 添加插件 sidecar：
+
+```yaml
+# argocd-repo-server-patch.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      containers:
+        - name: deno-manifest-plugin
+          image: denoland/deno:latest
+          command: [/var/run/argocd/argocd-cmp-server]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - mountPath: /var/run/argocd
+              name: var-files
+            - mountPath: /home/argocd/cmp-server/plugins
+              name: plugins
+            - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+              subPath: plugin.yaml
+              name: deno-manifest-plugin
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - configMap:
+            name: deno-manifest-plugin
+          name: deno-manifest-plugin
+        - emptyDir: {}
+          name: tmp
+```
+
+3. **应用配置**：
+
+```bash
+kubectl apply -f argocd-cm-plugin.yaml
+kubectl apply -f argocd-repo-server-patch.yaml
+
+# 重启 repo server 以加载插件
+kubectl rollout restart deployment/argocd-repo-server -n argocd
+```
+
+### 在 ArgoCD 应用中使用
+
+插件安装后，ArgoCD 会自动为包含 TypeScript 文件的任何仓库使用 `deno-manifest`：
+
+```yaml
+# example-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: my-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yourorg/your-repo
+    targetRevision: main
+    path: manifests/ # 包含 .ts 文件的目录
+    # 无需指定插件 - 自动发现！
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+### 环境变量
+
+您可以通过 ArgoCD 向 TypeScript 清单传递环境变量：
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: my-app
+spec:
+  source:
+    plugin:
+      env:
+        - name: ENVIRONMENT
+          value: production
+        - name: REPLICAS
+          value: "5"
+```
+
+### 高级用法：使用短链接
+
+为了方便，您可以在插件配置中使用短链接：
+
+```yaml
+generate:
+  command:
+    - deno
+    - run
+    - -A
+    - https://gyk.me/r/deno-manifest.ts
+```
+
+### 优势
+
+- ✅ **零配置**：自动发现 TypeScript 文件
+- ✅ **原生集成**：使用官方 Deno 镜像，无需自定义构建
+- ✅ **动态清单**：完整的 TypeScript 运行时用于生成清单
+- ✅ **GitOps 就绪**：输出与 ArgoCD 兼容的标准 Kubernetes 资源
+- ✅ **环境支持**：访问环境变量以实现动态配置
+
 ## 致谢
 
 GUO YANKE，MIT 许可证

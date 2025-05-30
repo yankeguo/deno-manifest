@@ -472,6 +472,164 @@ export default [
 ];
 ```
 
+## ArgoCD Integration
+
+`deno-manifest` integrates seamlessly with [ArgoCD](https://argo-cd.readthedocs.io/) as a Config Management Plugin (CMP), enabling you to use TypeScript for generating Kubernetes manifests in your GitOps workflows.
+
+### How It Works
+
+ArgoCD automatically detects TypeScript files in your repository and uses `deno-manifest` to generate Kubernetes resources. No manual configuration or plugin name specification required - it just works!
+
+### Setup
+
+1. **Create the plugin configuration**:
+
+```yaml
+# argocd-cm-plugin.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deno-manifest-plugin
+  namespace: argocd
+data:
+  plugin.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: ConfigManagementPlugin
+    metadata:
+      name: deno-manifest
+    spec:
+      discover:
+        find:
+          glob: "**/*.ts"
+      generate:
+        command:
+          - deno
+          - run
+          - -A
+          - https://raw.githubusercontent.com/yankeguo/deno-manifest/main/main.ts
+```
+
+2. **Patch the ArgoCD repo server** to add the plugin sidecar:
+
+```yaml
+# argocd-repo-server-patch.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      containers:
+        - name: deno-manifest-plugin
+          image: denoland/deno:latest
+          command: [/var/run/argocd/argocd-cmp-server]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - mountPath: /var/run/argocd
+              name: var-files
+            - mountPath: /home/argocd/cmp-server/plugins
+              name: plugins
+            - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+              subPath: plugin.yaml
+              name: deno-manifest-plugin
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - configMap:
+            name: deno-manifest-plugin
+          name: deno-manifest-plugin
+        - emptyDir: {}
+          name: tmp
+```
+
+3. **Apply the configuration**:
+
+```bash
+kubectl apply -f argocd-cm-plugin.yaml
+kubectl apply -f argocd-repo-server-patch.yaml
+
+# Restart repo server to load the plugin
+kubectl rollout restart deployment/argocd-repo-server -n argocd
+```
+
+### Usage with ArgoCD Applications
+
+Once the plugin is installed, ArgoCD will automatically use `deno-manifest` for any repository containing TypeScript files:
+
+```yaml
+# example-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: my-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yourorg/your-repo
+    targetRevision: main
+    path: manifests/ # Directory containing your .ts files
+    # No plugin specification needed - auto-discovered!
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+### Environment Variables
+
+You can pass environment variables to your TypeScript manifests through ArgoCD:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: my-app
+spec:
+  source:
+    plugin:
+      env:
+        - name: ENVIRONMENT
+          value: production
+        - name: REPLICAS
+          value: "5"
+```
+
+### Advanced: Using a Short URL
+
+For convenience, you can use the short URL in your plugin configuration:
+
+```yaml
+generate:
+  command:
+    - deno
+    - run
+    - -A
+    - https://gyk.me/r/deno-manifest.ts
+```
+
+### Benefits
+
+- ✅ **Zero Configuration**: Automatic discovery of TypeScript files
+- ✅ **Native Integration**: Uses official Deno image, no custom builds required
+- ✅ **Dynamic Manifests**: Full TypeScript runtime for generating manifests
+- ✅ **GitOps Ready**: Outputs standard Kubernetes resources compatible with ArgoCD
+- ✅ **Environment Support**: Access environment variables for dynamic configurations
+
 ## Credits
 
 GUO YANKE, MIT License
