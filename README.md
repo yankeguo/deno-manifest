@@ -14,6 +14,76 @@ A GitOps tool that aggregates all default TypeScript exports from a directory in
 - 🎯 **GitOps Ready**: Outputs valid Kubernetes manifests in JSON format for direct use in GitOps workflows
 - 🛡️ **Safe Filtering**: Excludes test files, definition files, and hidden files automatically
 
+## Why TypeScript?
+
+Unlike other manifest generation approaches like Jsonnet, Kustomize, or plain YAML templating, our TypeScript-based solution offers significant advantages:
+
+### 🎯 **Type Safety with Official Kubernetes Types**
+
+- Leverage official Kubernetes NPM packages (e.g., `@kubernetes/client-node`) for complete type definitions
+- Get compile-time validation of resource schemas
+- Catch configuration errors before deployment, not during runtime
+
+### 💡 **Superior Developer Experience**
+
+- **IDE Intelligence**: Full IntelliSense support with auto-completion for all Kubernetes resource fields
+- **Immediate Feedback**: See errors as you type - misspelled fields, wrong types, or invalid configurations are highlighted instantly
+- **Documentation at Your Fingertips**: Hover over any field to see its documentation from the official Kubernetes API
+
+### 🔧 **Powerful Language Features**
+
+- Use the full power of TypeScript: conditionals, loops, functions, and modules
+- Import and reuse common configurations across manifests
+- Leverage npm ecosystem for utility libraries
+- Write unit tests for your manifest generation logic
+
+### 📝 **Example: Type Safety in Action**
+
+With TypeScript and Kubernetes types:
+
+```typescript
+import { V1Deployment } from "@kubernetes/client-node";
+
+// TypeScript catches errors immediately!
+const deployment: V1Deployment = {
+  apiVersion: "apps/v1",
+  kind: "Deployment",
+  metadata: {
+    name: "my-app",
+    // TypeScript error: 'lables' does not exist. Did you mean 'labels'?
+    lables: { app: "my-app" },
+  },
+  spec: {
+    // TypeScript error: Type 'string' is not assignable to type 'number'
+    replicas: "3",
+    selector: {
+      matchLabels: { app: "my-app" },
+    },
+    template: {
+      // Full auto-completion for all nested fields!
+      metadata: { labels: { app: "my-app" } },
+      spec: {
+        containers: [
+          {
+            name: "app",
+            image: "my-app:latest",
+            // TypeScript knows this should be an array of objects
+            ports: [{ containerPort: 8080 }],
+          },
+        ],
+      },
+    },
+  },
+};
+```
+
+Compare this to Jsonnet or plain YAML where:
+
+- ❌ No immediate feedback on typos or wrong field names
+- ❌ No type checking for values (strings vs numbers vs objects)
+- ❌ No auto-completion or IntelliSense
+- ❌ Errors only discovered at deployment time
+
 ## Installation
 
 ```bash
